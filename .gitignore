@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.ipynb_checkpoints
+.vscode
+temp.ipynb
+temp.py
+# media is manim generated files
+media
+# copy_media.ipynb is a notebook to copy images and videos to the directory of blog
+copy_media.ipynb
