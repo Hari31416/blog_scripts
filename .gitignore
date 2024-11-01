@@ -6,5 +6,7 @@ temp.ipynb
 temp.py
 # media is manim generated files
 media
+# Partial movies created by manim
+*/videos/partial_movie_files
 # copy_media.ipynb is a notebook to copy images and videos to the directory of blog
 copy_media.ipynb
