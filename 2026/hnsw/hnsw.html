@@ -1,0 +1,2392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Visual, Intuitive Guide to HNSW (Hierarchical Navigable Small World)</title>
+    <meta name="description"
+        content="An interactive engineering guide explaining the search routing, graph construction, and hyperparameter tuning of Hierarchical Navigable Small World (HNSW) vector graphs." />
+
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet" />
+
+    <style>
+        /* Inlined from ./base.css */
+        /* Clean Minimalist Standalone Article Base Stylesheet */
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-body: #ffffff;
+            --text-main: #1e293b;
+            --text-heading: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --border-soft: #f1f5f9;
+            --accent-color: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-light: #eff6ff;
+            --code-bg: #0f172a;
+            --code-text: #f8fafc;
+            --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-heading: "Outfit", sans-serif;
+            --font-mono: "Fira Code", monospace;
+        }
+
+        ::selection {
+            background-color: #bfdbfe;
+            color: #1e3a8a;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            line-height: 1.75;
+            font-size: 1.05rem;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .layout-wrapper {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 4rem 1.5rem 2rem 1.5rem;
+        }
+
+        .article-content {
+            width: 100%;
+        }
+
+        .article-header {
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-soft);
+        }
+
+        .article-title {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--text-heading);
+            line-height: 1.2;
+        }
+
+        /* Table of Contents */
+        .table-of-contents {
+            background-color: var(--border-soft);
+            border-radius: 8px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 2.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .toc-details summary {
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .toc-details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .toc-details h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--text-heading);
+        }
+
+        .toc-toggle-icon {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            transition: transform 0.2s ease;
+        }
+
+        .toc-details[open] .toc-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .toc-content {
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+        }
+
+        .table-of-contents ul {
+            list-style-type: none;
+            padding-left: 0;
+            margin-bottom: 0;
+        }
+
+        .table-of-contents ul ul {
+            padding-left: 1.25rem;
+            margin-top: 0.25rem;
+            margin-bottom: 0.25rem;
+            border-left: 1px solid #cbd5e1;
+        }
+
+        .table-of-contents li {
+            margin-bottom: 0.4rem;
+            line-height: 1.4;
+        }
+
+        .table-of-contents a {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-size: 0.95rem;
+        }
+
+        .table-of-contents ul ul a {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .table-of-contents a:hover {
+            text-decoration: underline;
+            color: var(--accent-hover);
+        }
+
+        /* Article Body Formatting — scoped to avoid widget bleed-through */
+        .article-content h2 {
+            font-family: var(--font-heading);
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            margin: 3rem 0 1.25rem 0;
+            line-height: 1.3;
+        }
+
+        .article-content h3 {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-heading);
+            margin: 2rem 0 1rem 0;
+        }
+
+        /* Reset article heading margins inside widget containers */
+        .stepper-step h3,
+        .quiz-container h3,
+        .flashcard h3 {
+            margin: 0 0 0.75rem 0;
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 1.5rem;
+        }
+
+        strong {
+            color: var(--text-heading);
+            font-weight: 600;
+        }
+
+        ul,
+        ol {
+            margin-bottom: 1.5rem;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Figures & Images */
+        figure {
+            margin: 2.5rem 0;
+        }
+
+        figure img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            display: block;
+        }
+
+        figcaption {
+            margin-top: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        /* Callouts */
+        .callout {
+            background-color: var(--accent-light);
+            border-left: 4px solid var(--accent-color);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+            font-size: 0.95rem;
+        }
+
+        .callout p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Code Blocks */
+        .code-container {
+            margin: 2rem 0;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
+        }
+
+        .code-header {
+            background-color: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 1rem;
+            border-bottom: 1px solid #334155;
+        }
+
+        .code-label {
+            color: #94a3b8;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+        }
+
+        .copy-btn {
+            background-color: transparent;
+            color: #94a3b8;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 0.15rem 0.5rem;
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .copy-btn:hover {
+            background-color: #334155;
+            color: #f8fafc;
+        }
+
+        pre {
+            padding: 1.25rem 1rem;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: var(--code-text);
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            background-color: #f1f5f9;
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            color: #0f172a;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+
+        /* Keyword Highlights */
+        .kw {
+            color: #c084fc;
+            font-weight: 500;
+        }
+
+        .fn {
+            color: #38bdf8;
+        }
+
+        .st {
+            color: #a5d6ff;
+        }
+
+        .cm {
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .dc {
+            color: #34d399;
+        }
+
+        .pr {
+            color: #f472b6;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            font-size: 0.95rem;
+        }
+
+        th,
+        td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            font-family: var(--font-heading);
+            font-weight: 600;
+            color: var(--text-heading);
+            background-color: #f8fafc;
+        }
+
+        /* Shared keyframes — used by multiple components */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Dark mode — base overrides only */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-body: #0f172a;
+                --text-main: #cbd5e1;
+                --text-heading: #f1f5f9;
+                --text-muted: #94a3b8;
+                --border-color: #334155;
+                --border-soft: #1e293b;
+                --accent-color: #3b82f6;
+                --accent-hover: #60a5fa;
+                --accent-light: #1e3a5f;
+                --code-bg: #020617;
+            }
+
+            .code-header {
+                background-color: #1e293b;
+            }
+
+            th {
+                background-color: #1e293b;
+            }
+
+            ::selection {
+                background-color: rgba(59, 130, 246, 0.35);
+                color: #f1f5f9;
+            }
+        }
+    </style>
+    <style>
+        /* Inlined from ./components/quiz.css */
+        /* Quiz / knowledge-check component styles */
+
+        .quiz-container {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2.5rem 0;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+        }
+
+        .quiz-question {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--text-heading);
+        }
+
+        .quiz-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .quiz-option {
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--bg-body);
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .quiz-option:hover:not(.is-disabled) {
+            border-color: var(--accent-color);
+            background: var(--accent-light);
+        }
+
+        .quiz-option.is-selected {
+            border-color: var(--accent-color);
+            background: var(--accent-light);
+            font-weight: 600;
+        }
+
+        .quiz-option.is-correct {
+            border-color: #10b981;
+            background: #ecfdf5;
+            color: #065f46;
+        }
+
+        .quiz-option.is-incorrect {
+            border-color: #ef4444;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .quiz-feedback {
+            margin-top: 1.5rem;
+            padding: 1.25rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            display: none;
+            border: 1px solid var(--border-color);
+            background: var(--border-soft);
+        }
+
+        .quiz-feedback.is-visible {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .quiz-feedback.is-correct {
+            border-color: #10b981;
+            background: #ecfdf5;
+        }
+
+        .quiz-feedback.is-incorrect {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .quiz-feedback [data-feedback] {
+            display: none !important;
+        }
+
+        .quiz-feedback.is-visible [data-feedback].is-active {
+            display: block !important;
+        }
+
+        /* Shake animation for wrong answers */
+        .quiz-container.shake {
+            animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+
+        @keyframes shake {
+
+            10%,
+            90% {
+                transform: translate3d(-1px, 0, 0);
+            }
+
+            20%,
+            80% {
+                transform: translate3d(2px, 0, 0);
+            }
+
+            30%,
+            50%,
+            70% {
+                transform: translate3d(-4px, 0, 0);
+            }
+
+            40%,
+            60% {
+                transform: translate3d(4px, 0, 0);
+            }
+        }
+
+        .quiz-retry-btn {
+            display: block;
+            margin-top: 1rem;
+            padding: 0.5rem 1.25rem;
+            background: transparent;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .quiz-retry-btn:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        /* Dark mode */
+        @media (prefers-color-scheme: dark) {
+            .quiz-container {
+                background: #1e293b;
+            }
+
+            .quiz-option {
+                background: #1e293b;
+            }
+
+            .quiz-option.is-correct {
+                background: #052e16;
+                border-color: #10b981;
+                color: #6ee7b7;
+            }
+
+            .quiz-option.is-incorrect {
+                background: #3b0000;
+                border-color: #ef4444;
+                color: #fca5a5;
+            }
+
+            .quiz-feedback {
+                background: #1e293b;
+            }
+
+            .quiz-feedback.is-correct {
+                background: #052e16;
+                border-color: #10b981;
+            }
+
+            .quiz-feedback.is-incorrect {
+                background: #3b0000;
+                border-color: #ef4444;
+            }
+        }
+    </style>
+    <style>
+        /* Inlined from ./components/stepper.css */
+        /* Stepper component styles */
+
+        .stepper {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin: 2.5rem 0;
+            overflow: hidden;
+        }
+
+        .stepper-header {
+            display: flex;
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem;
+            gap: 0.5rem;
+        }
+
+        .stepper-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .stepper-dot.is-active {
+            background: var(--accent-color);
+            transform: scale(1.2);
+        }
+
+        .stepper-content-wrapper {
+            position: relative;
+            min-height: 200px;
+        }
+
+        .stepper-step {
+            padding: 2rem;
+            display: none;
+        }
+
+        .stepper-step.is-active {
+            display: block;
+            animation: slideIn 0.4s ease;
+        }
+
+        .stepper-controls {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem 2rem;
+            background: white;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .stepper-counter {
+            margin-left: auto;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            align-self: center;
+        }
+
+        .stepper-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .stepper-btn:hover:not(:disabled) {
+            background: var(--border-soft);
+        }
+
+        .stepper-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Dark mode */
+        @media (prefers-color-scheme: dark) {
+            .stepper {
+                background: #0f172a;
+            }
+
+            .stepper-header,
+            .stepper-controls {
+                background: #1e293b;
+            }
+        }
+    </style>
+    <style>
+        /* Inlined from ./components/comparison-tabs.css */
+        /* Comparison tabs (text/code before-after) component styles */
+
+        .comparison-tabs {
+            margin: 2.5rem 0;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .comparison-tab-headers {
+            display: flex;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .comparison-tab-btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font-sans);
+        }
+
+        .comparison-tab-btn.is-active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+            background: white;
+        }
+
+        .comparison-tab-btn:hover:not(.is-active) {
+            color: var(--text-heading);
+            background: var(--border-soft);
+        }
+
+        .comparison-tab-panel {
+            display: none;
+            padding: 1.5rem;
+        }
+
+        .comparison-tab-panel.is-active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .comparison-tab-panel .code-container {
+            margin: 0;
+        }
+
+        /* Dark mode */
+        @media (prefers-color-scheme: dark) {
+            .comparison-tab-headers {
+                background: #1e293b;
+            }
+
+            .comparison-tab-btn.is-active {
+                background: #0f172a;
+            }
+
+            .comparison-tab-panel {
+                background: #0f172a;
+            }
+        }
+    </style>
+    <style>
+        /* Inlined from ./components/primitives.css */
+        /* Primitives component styles — range sliders and explorable explanations */
+
+        .primitive-control-group {
+            background: var(--border-soft);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        .primitive-control {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .primitive-control:last-child {
+            margin-bottom: 0;
+        }
+
+        .primitive-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-heading);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .primitive-value {
+            color: var(--accent-color);
+            font-family: var(--font-mono);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: var(--border-color);
+            border-radius: 3px;
+            appearance: none;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+    </style>
+
+    <!-- MathJax Setup for beautiful LaTeX rendering -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\\]"]] },
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+    <!-- Custom inline styles for widgets and layouts -->
+    <style>
+        /* General Widget Styling */
+        .widget-card {
+            background-color: var(--border-soft);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2.5rem 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .widget-title {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            margin-bottom: 0.5rem;
+        }
+
+        .widget-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        /* 1. Layer Selection Simulator Specific Styles */
+        .layer-sim-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .layer-sim-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .layer-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .sim-btn {
+            background-color: var(--accent-color);
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.75rem 1.25rem;
+            font-family: var(--font-sans);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            text-align: center;
+        }
+
+        .sim-btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .result-box {
+            background-color: var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .result-box div {
+            font-size: 0.9rem;
+            color: var(--text-main);
+        }
+
+        .result-box span.highlight {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+
+        .layer-visualizer {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .probability-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .bar-label {
+            width: 60px;
+            font-family: var(--font-mono);
+            color: var(--text-heading);
+            font-weight: 600;
+        }
+
+        .bar-track {
+            flex-grow: 1;
+            background-color: var(--border-color);
+            height: 16px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            background-color: var(--accent-color);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .bar-fill.active-layer {
+            background-color: #10b981;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+        }
+
+        .bar-percent {
+            width: 45px;
+            text-align: right;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+        }
+
+        /* 2. Diversity Heuristic Interactive SVGs */
+        .heuristic-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        @media (max-width: 768px) {
+            .heuristic-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .svg-canvas-wrapper {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            aspect-ratio: 1;
+        }
+
+        .heuristic-svg {
+            width: 100%;
+            max-width: 300px;
+            height: auto;
+        }
+
+        .heuristic-status-text {
+            background-color: var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-main);
+            margin-top: 1rem;
+        }
+
+        /* 3. Hyperparameter Tuner Specific Styles */
+        .tuner-metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        @media (max-width: 480px) {
+            .tuner-metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .metric-card {
+            background-color: var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-heading);
+        }
+
+        .metric-perf-bar {
+            height: 4px;
+            background-color: var(--border-soft);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .metric-perf-fill {
+            height: 100%;
+            background-color: var(--accent-color);
+            width: 50%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+
+        /* Collapsible Formulas */
+        .formula-details {
+            margin-top: 1rem;
+            border-top: 1px dashed var(--border-color);
+            padding-top: 0.75rem;
+        }
+
+        .formula-summary {
+            font-size: 0.85rem;
+            color: var(--accent-color);
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+        }
+
+        .formula-summary:hover {
+            color: var(--accent-hover);
+            text-decoration: underline;
+        }
+
+        .formula-content {
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .formula-content p {
+            margin-bottom: 0.75rem;
+        }
+
+        /* Color Coding Badges in Tables */
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 4px;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        .badge-success {
+            background-color: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .badge-warning {
+            background-color: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .badge-danger {
+            background-color: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .badge-info {
+            background-color: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        /* Dark mode overrides for badges */
+        @media (prefers-color-scheme: dark) {
+            .badge-success {
+                background-color: #064e3b;
+                color: #a7f3d0;
+                border: 1px solid #047857;
+            }
+
+            .badge-warning {
+                background-color: #78350f;
+                color: #fde68a;
+                border: 1px solid #b45309;
+            }
+
+            .badge-danger {
+                background-color: #7f1d1d;
+                color: #fca5a5;
+                border: 1px solid #b91c1c;
+            }
+
+            .badge-info {
+                background-color: #1e3a8a;
+                color: #bfdbfe;
+                border: 1px solid #1d4ed8;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout-wrapper">
+        <article class="article-content">
+            <header class="article-header">
+                <h1 class="article-title">The Visual, Intuitive Guide to HNSW (Hierarchical Navigable Small World)</h1>
+            </header>
+
+            <nav class="table-of-contents">
+                <details class="toc-details" open>
+                    <summary class="toc-summary">
+                        <h3>Table of Contents</h3>
+                        <span class="toc-toggle-icon">▼</span>
+                    </summary>
+                    <div class="toc-content">
+                        <ul>
+                            <li>
+                                <a href="#architecture">1. The Multi-Layer Skip-Graph</a>
+                            </li>
+                            <li>
+                                <a href="#search">2. Search Routing via Greedy Walks</a>
+                                <ul>
+                                    <li><a href="#search-step-by-step">Step-by-Step Traversal Walkthrough</a></li>
+                                </ul>
+                            </li>
+                            <li>
+                                <a href="#build">3. Graph Construction & Heuristics</a>
+                                <ul>
+                                    <li><a href="#layer-selection">Phase 1: Layer Selection (Exponential Decay)</a></li>
+                                    <li><a href="#greedy-walk-down">Phase 2: Routing Downward</a></li>
+                                    <li><a href="#diversity-heuristic">Phase 3: The Diversity Heuristic</a></li>
+                                    <li><a href="#pruning">Phase 4: Base Layer Connection & Pruning</a></li>
+                                </ul>
+                            </li>
+                            <li>
+                                <a href="#tuning">4. Tuning Hyperparameters in Production</a>
+                                <ul>
+                                    <li><a href="#tradeoff-triangle">The Vector Search Trade-off Triangle</a></li>
+                                    <li><a href="#parameter-tuner">Interactive Parameter Tuner Dashboard</a></li>
+                                    <li><a href="#cheat-sheet">The Ultimate HNSW Tuning Cheat Sheet</a></li>
+                                </ul>
+                            </li>
+                            <li>
+                                <a href="#conclusion">5. Conclusion</a>
+                            </li>
+                        </ul>
+                    </div>
+                </details>
+            </nav>
+
+            <!-- 1. The Multi-Layer Skip-Graph -->
+            <section id="architecture">
+                <h2>1. The Multi-Layer Skip-Graph</h2>
+                <p>
+                    Vector databases serve millions of queries by matching high-dimensional embeddings in microseconds.
+                    Traditional exact search requires a linear scan across every vector. This creates a bottleneck at
+                    scale.
+                    HNSW structures the vector space as a vertically stacked graph index.
+                    This index achieves logarithmic search complexity.
+                </p>
+                <p>
+                    The core architecture is inspired by the skip-list.
+                    The skip-list speeds up search in sorted lists by maintaining sparse, high-level shortcuts.
+                    HNSW adapts this mechanism to multi-dimensional graphs.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Note:</strong> Higher layers feature sparse, long-range connection expressways.
+                        Lower layers resolve localized coordinate neighborhoods.
+                        The bottom layer (Layer 0) holds all data vectors.
+                    </p>
+                </div>
+
+                <p>
+                    Each node that exists on a higher layer is duplicated on all layers below it.
+                    These duplicates are connected vertically.
+                    The searcher hops across the sparse top layers to zoom near the target before dropping down to dense
+                    layers.
+                </p>
+            </section>
+
+            <!-- 2. Search Routing via Greedy Walks -->
+            <section id="search">
+                <h2>2. Search Routing via Greedy Walks</h2>
+                <p>
+                    HNSW searches the stack using a greedy routing walk.
+                    At the active node, the searcher calculates the distance between the query point and all connected
+                    neighbors.
+                    The searcher hops only to neighbors that are strictly closer to the query than the active node.
+                    When no closer neighbor is found, the searcher reaches a local minimum.
+                    The searcher then drops vertically to the layer below and resumes the greedy walk.
+                </p>
+
+                <figure>
+                    <video controls autoplay loop muted playsinline
+                        style="width: 100%; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <source src="./HNSWSearch.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <figcaption>Figure 1: Visualizing HNSW search query routing from the sparse top expressways down to
+                        the dense base layer.</figcaption>
+                </figure>
+
+                <section id="search-step-by-step">
+                    <h3>Step-by-Step Traversal Walkthrough</h3>
+                    <p>
+                        Let us trace a routing path.
+                        The target query point is at coordinates <strong>[3.0, -2.0]</strong>.
+                    </p>
+
+                    <div class="stepper">
+                        <div class="stepper-header">
+                            <div class="stepper-dot is-active"></div>
+                            <div class="stepper-dot"></div>
+                            <div class="stepper-dot"></div>
+                        </div>
+                        <div class="stepper-content-wrapper">
+                            <div class="stepper-step is-active">
+                                <h3>Layer 2: Sparse Expressway</h3>
+                                <p>
+                                    The walk begins at Node A.
+                                    The searcher evaluates Node D.
+                                    Since Node D is closer to the query, the searcher hops to D.
+                                    From Node D, the searcher evaluates Node E.
+                                    The distance to Node E is shorter, so the searcher hops to E.
+                                    At Node E, all neighbors are farther.
+                                    The searcher stops at E.
+                                </p>
+                                <p>
+                                    <em>Layer 2 Cost: 2 hops.</em>
+                                </p>
+                            </div>
+                            <div class="stepper-step">
+                                <h3>Layer 1: Coarse Street Grid</h3>
+                                <p>
+                                    The searcher drops vertically from Node E on Layer 2 to Node E on Layer 1.
+                                    The searcher probes the local neighbors: D, X, and H.
+                                    Node H is closest, so the searcher hops to H.
+                                    From H, the searcher hops to I.
+                                    From I, the searcher hops to K.
+                                    At K, all neighbors are farther from the query.
+                                    The searcher stops at K.
+                                </p>
+                                <p>
+                                    <em>Layer 1 Cost: 3 hops.</em>
+                                </p>
+                            </div>
+                            <div class="stepper-step">
+                                <h3>Layer 0: Dense Base Layer</h3>
+                                <p>
+                                    The searcher drops from K on Layer 1 to K on Layer 0.
+                                    The base layer contains all data points.
+                                    The searcher probes the dense local connections.
+                                    Node R is closer, so the searcher hops to R.
+                                    From R, the searcher hops to P.
+                                    At Node P, no neighbors are closer.
+                                    The searcher declares Node P the global nearest neighbor.
+                                </p>
+                                <p>
+                                    <em>Layer 0 Cost: 2 hops. Total Walk Cost: 7 hops.</em>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="stepper-controls">
+                            <button class="stepper-btn is-prev">Back</button>
+                            <button class="stepper-btn is-next">Next</button>
+                        </div>
+                    </div>
+
+                    <p>
+                        This hierarchical approach avoids flat scans.
+                        In a database of 1,000,000 vectors, exact search performs 1,000,000 distance evaluations.
+                        HNSW finds the nearest neighbor in exactly 7 hops.
+                    </p>
+                </section>
+            </section>
+
+            <!-- 3. Graph Construction & Heuristics -->
+            <section id="build">
+                <h2>3. Graph Construction & Heuristics</h2>
+                <p>
+                    Building an HNSW graph requires establishing connections during node insertion.
+                    The graph must remain sparse and navigable.
+                </p>
+
+                <figure>
+                    <video controls autoplay loop muted playsinline
+                        style="width: 100%; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <source src="./HNSWBuild.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <figcaption>Figure 2: Step-by-step construction of the HNSW index, showing exponential layer decay,
+                        entry search routing, neighbor selection, and edge pruning.</figcaption>
+                </figure>
+
+                <!-- Phase 1 -->
+                <section id="layer-selection">
+                    <h3>Phase 1: Layer Selection (Exponential Decay)</h3>
+                    <p>
+                        When a new node enters the index, the algorithm assigns it a maximum layer.
+                        To keep the expressways sparse, the algorithm uses exponential decay.
+                        The probability of a node existing on a higher layer drops rapidly.
+                    </p>
+                    <p>
+                        The maximum layer is calculated as:
+                        \[L_{\max} = \left\lfloor -\ln(u) \cdot m_L \right\rfloor\]
+                        Where \(u\) is a uniform random decimal between 0 and 1, and \(m_L\) controls the decay scale.
+                    </p>
+
+                    <!-- Interactive Layer Selector Widget -->
+                    <div class="widget-card">
+                        <div class="widget-title">Interactive Layer Selector</div>
+                        <div class="widget-subtitle">Tune the connection budget and draw random samples to see how HNSW
+                            distributes graph layers.</div>
+
+                        <div class="layer-sim-container">
+                            <div class="layer-controls">
+                                <div class="primitive-control-group">
+                                    <div class="primitive-control">
+                                        <label class="primitive-label">
+                                            Max Connections per Node (M)
+                                            <span class="primitive-value" id="val-m">16</span>
+                                        </label>
+                                        <input type="range" min="4" max="64" value="16" id="input-m" />
+                                    </div>
+                                    <div class="primitive-control" style="margin-top: 1rem;">
+                                        <label class="primitive-label">
+                                            Random Decimals Selector (u)
+                                            <span class="primitive-value" id="val-u">0.25</span>
+                                        </label>
+                                        <input type="range" min="0.01" max="0.99" step="0.01" value="0.25"
+                                            id="input-u" />
+                                    </div>
+                                </div>
+
+                                <button class="sim-btn" id="btn-roll">Draw Random Sample (u)</button>
+
+                                <div class="result-box">
+                                    <div>Decay Scale (\(m_L = 1 / \ln(M)\)): <span class="highlight"
+                                            id="res-ml">0.361</span></div>
+                                    <div>Decay Math: <span id="math-step"
+                                            style="font-family: var(--font-mono); color: var(--accent-color); font-weight: 600;"></span>
+                                    </div>
+                                    <div>Calculated Max Layer (\(L_{\max}\)): <span class="highlight" id="res-lmax"
+                                            style="font-size: 1.1rem; color: #10b981;">1</span></div>
+                                </div>
+                            </div>
+
+                            <div class="layer-visualizer">
+                                <div class="probability-bar-row">
+                                    <span class="bar-label">Layer 3</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill" id="bar-l3"></div>
+                                    </div>
+                                    <span class="bar-percent" id="pct-l3">~3%</span>
+                                </div>
+                                <div class="probability-bar-row">
+                                    <span class="bar-label">Layer 2</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill" id="bar-l2"></div>
+                                    </div>
+                                    <span class="bar-percent" id="pct-l2">~8%</span>
+                                </div>
+                                <div class="probability-bar-row">
+                                    <span class="bar-label">Layer 1</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill" id="bar-l1"></div>
+                                    </div>
+                                    <span class="bar-percent" id="pct-l1">~25%</span>
+                                </div>
+                                <div class="probability-bar-row">
+                                    <span class="bar-label">Layer 0</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill" id="bar-l0"></div>
+                                    </div>
+                                    <span class="bar-percent" id="pct-l0">~63%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <details class="formula-details">
+                            <summary class="formula-summary">How are these values calculated?</summary>
+                            <div class="formula-content">
+                                <p>
+                                    The normalization scale is set to \(m_L = \frac{1}{\ln(M)}\).
+                                    This guarantees that the overlap between subsequent layers behaves as a skip-list
+                                    with an active step size of \(M\).
+                                    Drawing a random decimal \(u\) from a uniform distribution shifts the layer
+                                    assignment exponentially.
+                                </p>
+                                <div class="code-container">
+                                    <div class="code-header">
+                                        <div class="code-label">layer_selection.py</div>
+                                        <button class="copy-btn">Copy</button>
+                                    </div>
+                                    <pre><code><span class="kw">import</span> math
+<span class="kw">import</span> random
+
+M = <span class="dc">16</span>
+m_L = <span class="dc">1.0</span> / math.log(M)
+u = random.uniform(<span class="dc">0.0</span>, <span class="dc">1.0</span>)
+l_max = math.floor(-math.log(u) * m_L)</code></pre>
+                                </div>
+                                <p>
+                                    <em>Disclaimer: Real-world probability shares may vary slightly due to
+                                        floating-point rounding.</em>
+                                </p>
+                            </div>
+                        </details>
+                    </div>
+                </section>
+
+                <!-- Phase 2 -->
+                <section id="greedy-walk-down">
+                    <h3>Phase 2: Routing Downward</h3>
+                    <p>
+                        After selecting the maximum layer, the node must be inserted.
+                        The algorithm begins a greedy walk from the top entry point of the index.
+                        It travels downward through the layers, finding the local minimum at each layer.
+                        Once the walk reaches the node's maximum layer, it shifts from routing to connection wiring.
+                    </p>
+                </section>
+
+                <!-- Phase 3 -->
+                <section id="diversity-heuristic">
+                    <h3>Phase 3: The Diversity Heuristic</h3>
+                    <p>
+                        When connecting the new node to neighbors, a naive approach would connect to the absolute
+                        closest points.
+                        However, this creates highly clustered graphs.
+                        If nearby nodes cluster in a single direction, future searchers approaching from other
+                        directions cannot traverse the graph.
+                    </p>
+                    <p>
+                        HNSW avoids this clustering by using a diversity heuristic.
+                        The algorithm evaluates candidate nodes sequentially.
+                        A candidate is accepted only if it is closer to the new node than it is to any already connected
+                        neighbor.
+                        This ensures edges extend in diverse directions, forming global shortcuts.
+                    </p>
+
+                    <!-- Interactive Diversity Visualizer Widget -->
+                    <div class="widget-card">
+                        <div class="widget-title">Visualizing the Diversity Heuristic</div>
+                        <div class="widget-subtitle">Evaluate candidates sequentially. See how HNSW accepts Node Q while
+                            rejecting Node E.</div>
+
+                        <div class="heuristic-container">
+                            <div class="layer-controls">
+                                <div class="comparison-tabs" id="tab-heuristic">
+                                    <div class="comparison-tab-headers" style="margin-bottom: 1rem;">
+                                        <button class="comparison-tab-btn is-active" data-tab="step1">1. Evaluate
+                                            P</button>
+                                        <button class="comparison-tab-btn" data-tab="step2">2. Evaluate E</button>
+                                        <button class="comparison-tab-btn" data-tab="step3">3. Evaluate Q</button>
+                                    </div>
+                                    <div class="comparison-tab-panel is-active" data-panel="step1">
+                                        <h3 style="margin-top:0;">Evaluating Candidate P (d = 0.90)</h3>
+                                        <p>
+                                            Node P is the closest neighbor candidate.
+                                            Since the connection list is empty, Node P is accepted.
+                                            The edge N-P is created.
+                                        </p>
+                                    </div>
+                                    <div class="comparison-tab-panel" data-panel="step2">
+                                        <h3 style="margin-top:0;">Evaluating Candidate E (d = 1.12)</h3>
+                                        <p>
+                                            Node E is close to N.
+                                            However, it is closer to Node P (d = 0.61) than to N (d = 1.12).
+                                            This connection is redundant.
+                                            Node E is rejected.
+                                        </p>
+                                    </div>
+                                    <div class="comparison-tab-panel" data-panel="step3">
+                                        <h3 style="margin-top:0;">Evaluating Candidate Q (d = 1.12)</h3>
+                                        <p>
+                                            Node Q is at the same distance as E.
+                                            However, Node Q is far from Node P (d = 1.94).
+                                            This connection adds multidirectional routing diversity.
+                                            Node Q is accepted.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="heuristic-status-text" id="status-h-text">
+                                    <strong>Status:</strong> Click the tabs above to step through the heuristic
+                                    evaluation.
+                                </div>
+                            </div>
+
+                            <div class="svg-canvas-wrapper">
+                                <svg viewBox="0 0 200 200" class="heuristic-svg" id="svg-heuristic">
+                                    <!-- Coordinate helper background -->
+                                    <circle cx="100" cy="100" r="80" fill="none" stroke="#334155" stroke-dasharray="2,2"
+                                        stroke-width="0.5" />
+
+                                    <!-- Connection Lines (Dynamic) -->
+                                    <line x1="100" y1="100" x2="30" y2="120" id="edge-p" stroke="#475569"
+                                        stroke-width="1.5" />
+                                    <line x1="100" y1="100" x2="60" y2="40" id="edge-e" stroke="#475569"
+                                        stroke-width="1.5" stroke-dasharray="2,2" opacity="0.2" />
+                                    <line x1="100" y1="100" x2="170" y2="80" id="edge-q" stroke="#475569"
+                                        stroke-width="1.5" opacity="0.2" />
+
+                                    <!-- Redundancy Check Line (Step 2) -->
+                                    <line x1="30" y1="120" x2="60" y2="40" id="edge-pe" stroke="#3b82f6"
+                                        stroke-width="1" stroke-dasharray="2,2" opacity="0" />
+                                    <line x1="30" y1="120" x2="170" y2="80" id="edge-pq" stroke="#3b82f6"
+                                        stroke-width="1" stroke-dasharray="2,2" opacity="0" />
+
+                                    <!-- Nodes (Fixed Points) -->
+                                    <!-- Node N (Center New Node) -->
+                                    <circle cx="100" cy="100" r="8" fill="#fbbf24" stroke="#ffffff"
+                                        stroke-width="1.5" />
+                                    <text x="100" y="115" fill="#ffffff" font-size="8" text-anchor="middle"
+                                        font-family="sans-serif" font-weight="bold">N</text>
+
+                                    <!-- Node P (Left-bottom Candidate) -->
+                                    <circle cx="30" cy="120" r="6" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5" />
+                                    <text x="30" y="135" fill="#94a3b8" font-size="8" text-anchor="middle"
+                                        font-family="sans-serif">P</text>
+
+                                    <!-- Node E (Left-top Candidate) -->
+                                    <circle cx="60" cy="40" r="6" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5" />
+                                    <text x="60" y="30" fill="#94a3b8" font-size="8" text-anchor="middle"
+                                        font-family="sans-serif">E</text>
+
+                                    <!-- Node Q (Right Candidate) -->
+                                    <circle cx="170" cy="80" r="6" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5" />
+                                    <text x="170" y="70" fill="#94a3b8" font-size="8" text-anchor="middle"
+                                        font-family="sans-serif">Q</text>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Phase 4 -->
+                <section id="pruning">
+                    <h3>Phase 4: Base Layer Connection & Pruning</h3>
+                    <p>
+                        Once connections are established, HNSW checks each connected node against a maximum connection
+                        budget.
+                        If any node exceeds the connection budget, the algorithm executes the diversity heuristic
+                        specifically on that node's neighbors.
+                        It prunes redundant connections.
+                        This keeps memory consumption bounded.
+                    </p>
+                </section>
+            </section>
+
+            <!-- 4. Tuning Hyperparameters in Production -->
+            <section id="tuning">
+                <h2>4. Tuning Hyperparameters in Production</h2>
+                <p>
+                    HNSW is highly tunable.
+                    Three parameters control the balance between retrieval speed, memory consumption, and search recall.
+                </p>
+
+                <figure>
+                    <video controls autoplay loop muted playsinline
+                        style="width: 100%; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <source src="./HNSWParams.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <figcaption>Figure 3: Split-screen visual experiments highlighting the trade-offs of Max Connections
+                        (M) and search queue size (ef_search) on recall latency and indexing speeds.</figcaption>
+                </figure>
+
+                <section id="tradeoff-triangle">
+                    <h3>The Vector Search Trade-off Triangle</h3>
+                    <p>
+                        Vector indices operate within a physical trade-off triangle.
+                        You can optimize for speed or accuracy, but higher settings increase resource footprints.
+                    </p>
+                    <ul>
+                        <li><strong>Recall Accuracy:</strong> The percentage of queries returning true nearest
+                            neighbors.</li>
+                        <li><strong>Search Latency:</strong> The volume of queries resolved per second.</li>
+                        <li><strong>Memory & Build Time:</strong> The RAM footprint of the index.</li>
+                    </ul>
+                </section>
+
+                <!-- Hyperparameter Tuner Dashboard Widget -->
+                <section id="parameter-tuner">
+                    <div class="widget-card">
+                        <div class="widget-title">HNSW Parameter Performance Tuner</div>
+                        <div class="widget-subtitle">Adjust parameters to simulate how they alter graph performance
+                            metrics in production.</div>
+
+                        <div class="primitive-control-group">
+                            <div class="primitive-control">
+                                <label class="primitive-label">
+                                    Max Connections (M)
+                                    <span class="primitive-value" id="val-tuner-m">16</span>
+                                </label>
+                                <input type="range" min="4" max="64" step="4" value="16" id="input-tuner-m" />
+                            </div>
+                            <div class="primitive-control" style="margin-top: 1rem;">
+                                <label class="primitive-label">
+                                    Build Search Size (ef_construction)
+                                    <span class="primitive-value" id="val-tuner-efc">64</span>
+                                </label>
+                                <input type="range" min="16" max="400" step="16" value="64" id="input-tuner-efc" />
+                            </div>
+                            <div class="primitive-control" style="margin-top: 1rem;">
+                                <label class="primitive-label">
+                                    Active Query Search Size (ef_search)
+                                    <span class="primitive-value" id="val-tuner-efs">16</span>
+                                </label>
+                                <input type="range" min="1" max="200" step="5" value="16" id="input-tuner-efs" />
+                            </div>
+                        </div>
+
+                        <div class="tuner-metrics-grid">
+                            <div class="metric-card">
+                                <span class="metric-label">Estimated Recall</span>
+                                <span class="metric-value" id="metric-recall">94.5%</span>
+                                <div class="metric-perf-bar">
+                                    <div class="metric-perf-fill" id="fill-recall"></div>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <span class="metric-label">Query Latency</span>
+                                <span class="metric-value" id="metric-latency">0.82 ms</span>
+                                <div class="metric-perf-bar">
+                                    <div class="metric-perf-fill" id="fill-latency"></div>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <span class="metric-label">Index RAM Size</span>
+                                <span class="metric-value" id="metric-ram">185 MB</span>
+                                <div class="metric-perf-bar">
+                                    <div class="metric-perf-fill" id="fill-ram"></div>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <span class="metric-label">Build Indexing Speed</span>
+                                <span class="metric-value" id="metric-build">1,250 v/s</span>
+                                <div class="metric-perf-bar">
+                                    <div class="metric-perf-fill" id="fill-build"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <details class="formula-details">
+                            <summary class="formula-summary">How are these values calculated?</summary>
+                            <div class="formula-content">
+                                <p>
+                                    Metrics are calculated using an empirical scaling model for a dataset of 1,000,000
+                                    vectors:
+                                </p>
+                                <ul>
+                                    <li><strong>Recall:</strong> Estimated as \(1 - e^{-c_1 \cdot ef_{\text{search}} /
+                                        M}\). Higher active search sizes increase accuracy.</li>
+                                    <li><strong>Latency:</strong> Calculated as \(c_2 \cdot ef_{\text{search}} \cdot
+                                        \log(N) / M\) milliseconds.</li>
+                                    <li><strong>Memory:</strong> Bounded directly by \(N \cdot M \cdot d\) bytes,
+                                        representing the graph skeletal coordinate array.</li>
+                                    <li><strong>Build Speed:</strong> Inversely proportional to
+                                        \(ef_{\text{construction}}\), as larger queues require additional distance
+                                        evaluations.</li>
+                                </ul>
+                                <p>
+                                    <em>Disclaimer: Real-world latency depends on hardware specifications, core count,
+                                        and vector dimension sizes.</em>
+                                </p>
+                            </div>
+                        </details>
+                    </div>
+                </section>
+
+                <!-- Table Cheat Sheet -->
+                <section id="cheat-sheet">
+                    <h3>The Ultimate HNSW Tuning Cheat Sheet</h3>
+                    <p>
+                        Refer to this summary to align parameters and configure production vector search layers.
+                    </p>
+
+                    <h4>Parameter-Level Tuning Mechanics</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Tuning Action</th>
+                                <th>Recall Impact</th>
+                                <th>Latency Impact</th>
+                                <th>Resource / Build Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>M</strong></td>
+                                <td>Increase ↑ (e.g. 32 to 64)</td>
+                                <td><span class="badge badge-success">Increases ↑</span></td>
+                                <td><span class="badge badge-success">Decreases ↓ (More shortcuts)</span></td>
+                                <td><span class="badge badge-danger">Higher RAM footprint</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>M</strong></td>
+                                <td>Decrease ↓ (e.g. 4 to 12)</td>
+                                <td><span class="badge badge-danger">Decreases ↓</span></td>
+                                <td><span class="badge badge-danger">Increases ↑ (Longer walks)</span></td>
+                                <td><span class="badge badge-success">Lower RAM footprint</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>ef_construction</strong></td>
+                                <td>Increase ↑ (e.g. 200 to 400)</td>
+                                <td><span class="badge badge-success">Increases ↑</span></td>
+                                <td><span class="badge badge-success">Decreases ↓ (Optimized links)</span></td>
+                                <td><span class="badge badge-danger">Slower indexing speed</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>ef_construction</strong></td>
+                                <td>Decrease ↓ (e.g. 16 to 64)</td>
+                                <td><span class="badge badge-danger">Decreases ↓</span></td>
+                                <td><span class="badge badge-danger">Increases ↑ (Poorer layout)</span></td>
+                                <td><span class="badge badge-success">Faster indexing speed</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>ef_search</strong></td>
+                                <td>Increase ↑ (e.g. 64 to 200)</td>
+                                <td><span class="badge badge-success">Increases ↑</span></td>
+                                <td><span class="badge badge-danger">Increases ↑ (Larger beam queue)</span></td>
+                                <td><span class="badge badge-info">No extra RAM cost</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>ef_search</strong></td>
+                                <td>Decrease ↓ (e.g. 4 to 16)</td>
+                                <td><span class="badge badge-danger">Decreases ↓</span></td>
+                                <td><span class="badge badge-success">Decreases ↓ (Smaller beam queue)</span></td>
+                                <td><span class="badge badge-info">No extra RAM cost</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Production Use Case Profiles</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Use Case Profile</th>
+                                <th>Target Priorities</th>
+                                <th>Recommended Knobs</th>
+                                <th>Performance Trade-offs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Real-Time Autocomplete & Feeds</strong></td>
+                                <td>Ultra-low latency, moderate recall, high throughput</td>
+                                <td><code>M = 8 - 12</code><br><code>ef_c = 64</code><br><code>ef_s = 8 - 16</code></td>
+                                <td>
+                                    <span class="badge badge-success">Latency: &lt;0.5ms</span><br>
+                                    <span class="badge badge-success">RAM: Minimal</span><br>
+                                    <span class="badge badge-warning">Recall: ~85% - 92%</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Standard Enterprise Search</strong></td>
+                                <td>Optimal compromise between speed, accuracy, and size</td>
+                                <td><code>M = 16 - 24</code><br><code>ef_c = 128</code><br><code>ef_s = 64</code></td>
+                                <td>
+                                    <span class="badge badge-success">Recall: ~95% - 98%</span><br>
+                                    <span class="badge badge-info">Latency: ~1.0ms</span><br>
+                                    <span class="badge badge-info">RAM: Moderate</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>High-Precision Ground Truth</strong></td>
+                                <td>Exact accuracy matching (legal, medical diagnostics)</td>
+                                <td><code>M = 32 - 64</code><br><code>ef_c = 256 - 400</code><br><code>ef_s = 128 - 256</code>
+                                </td>
+                                <td>
+                                    <span class="badge badge-success">Recall: ~99.5%+</span><br>
+                                    <span class="badge badge-danger">Latency: ~3.0 - 5.0ms</span><br>
+                                    <span class="badge badge-danger">RAM: Significant</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Resource-Constrained Edge</strong></td>
+                                <td>Strict memory limits, low core count environments</td>
+                                <td><code>M = 4 - 6</code><br><code>ef_c = 32 - 48</code><br><code>ef_s = 8</code></td>
+                                <td>
+                                    <span class="badge badge-success">RAM: Minimal skeletal footprint</span><br>
+                                    <span class="badge badge-warning">Recall: ~75% - 85%</span><br>
+                                    <span class="badge badge-warning">Latency: Moderate (~2.5ms)</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+            </section>
+
+            <!-- 5. Conclusion -->
+            <section id="conclusion">
+                <h2>5. Conclusion</h2>
+                <p>
+                    HNSW provides extreme query performance by combining structured multi-layer graph skip-lists with
+                    localized coordinate routing.
+                    By matching decaying densities with connection heuristics, the graph prevents clustering and
+                    preserves paths.
+                    Tuning the parameters dynamically optimizes HNSW across diverse enterprise search applications.
+                </p>
+            </section>
+        </article>
+    </div>
+
+    <!-- Script assets -->
+    <script>
+        /* Inlined from ./base.js */
+        // base.js — always included. Handles copy-button behavior for code blocks.
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initCodeCopyButtons);
+        } else {
+            initCodeCopyButtons();
+        }
+
+        function initCodeCopyButtons() {
+            document.querySelectorAll(".copy-btn").forEach((btn) => {
+                if (btn.dataset.copyInitialized) return;
+                btn.dataset.copyInitialized = "true";
+
+                btn.addEventListener("click", () => {
+                    const codeContainer = btn.closest(".code-container");
+                    if (!codeContainer) return;
+
+                    const codeBlock =
+                        codeContainer.querySelector("pre code") ||
+                        codeContainer.querySelector("pre");
+                    if (codeBlock) {
+                        navigator.clipboard
+                            .writeText(codeBlock.textContent)
+                            .then(() => {
+                                const originalText = btn.textContent;
+                                btn.textContent = "Copied!";
+                                btn.style.color = "#34d399";
+                                btn.style.borderColor = "#34d399";
+                                setTimeout(() => {
+                                    btn.textContent = originalText;
+                                    btn.style.color = "";
+                                    btn.style.borderColor = "";
+                                }, 2000);
+                            })
+                            .catch((err) => console.error("Copy failed", err));
+                    }
+                });
+            });
+        }
+
+    </script>
+    <script>
+        /* Inlined from ./components/quiz.js */
+        // quiz.js — knowledge-check quiz interaction for .quiz-container elements.
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initQuizzes);
+        } else {
+            initQuizzes();
+        }
+
+        function initQuizzes() {
+            document.querySelectorAll(".quiz-container").forEach((quiz) => {
+                if (quiz.dataset.initialized) return;
+                quiz.dataset.initialized = "true";
+
+                const options = quiz.querySelectorAll(".quiz-option");
+                const feedback = quiz.querySelector(".quiz-feedback");
+                const allowRetry = quiz.dataset.allowRetry === "true";
+
+                const resetQuiz = () => {
+                    delete quiz.dataset.completed;
+                    options.forEach((opt) => {
+                        opt.classList.remove(
+                            "is-disabled",
+                            "is-correct",
+                            "is-incorrect",
+                            "is-selected",
+                        );
+                    });
+                    const existingRetryBtn = quiz.querySelector(".quiz-retry-btn");
+                    if (existingRetryBtn) existingRetryBtn.remove();
+                    if (feedback) {
+                        feedback.classList.remove("is-visible", "is-correct", "is-incorrect");
+                        feedback
+                            .querySelectorAll("[data-feedback]")
+                            .forEach((el) => el.classList.remove("is-active"));
+                        const dynamicPrefix = feedback.querySelector("strong[data-dynamic]");
+                        if (dynamicPrefix) dynamicPrefix.remove();
+                    }
+                };
+
+                options.forEach((option) => {
+                    option.addEventListener("click", () => {
+                        if (quiz.dataset.completed) return;
+
+                        const isCorrect = option.dataset.correct === "true";
+
+                        quiz.dataset.completed = "true";
+                        options.forEach((opt) => {
+                            opt.classList.add("is-disabled");
+                            // Only reveal the correct answer if the player got it right,
+                            // or if there is no retry — avoids spoiling the answer on a wrong guess.
+                            if (opt.dataset.correct === "true" && (isCorrect || !allowRetry))
+                                opt.classList.add("is-correct");
+                            else if (opt === option && !isCorrect)
+                                opt.classList.add("is-incorrect");
+                        });
+
+                        if (feedback) {
+                            const correctMsg = feedback.querySelector(
+                                '[data-feedback="correct"]',
+                            );
+                            const incorrectMsg = feedback.querySelector(
+                                '[data-feedback="incorrect"]',
+                            );
+                            const generalMsg = feedback.querySelector(
+                                '[data-feedback="general"]',
+                            );
+
+                            if (correctMsg || incorrectMsg) {
+                                if (isCorrect && correctMsg) correctMsg.classList.add("is-active");
+                                else if (!isCorrect && incorrectMsg)
+                                    incorrectMsg.classList.add("is-active");
+                                if (generalMsg) generalMsg.classList.add("is-active");
+                            } else {
+                                const resultPrefix = document.createElement("strong");
+                                resultPrefix.dataset.dynamic = "true";
+                                resultPrefix.textContent = isCorrect ? "Correct! " : "Incorrect. ";
+                                resultPrefix.style.color = isCorrect ? "#059669" : "#dc2626";
+                                feedback.prepend(resultPrefix);
+                            }
+
+                            if (!isCorrect) {
+                                quiz.classList.add("shake");
+                                setTimeout(() => quiz.classList.remove("shake"), 500);
+
+                                if (allowRetry) {
+                                    const retryBtn = document.createElement("button");
+                                    retryBtn.className = "quiz-retry-btn";
+                                    retryBtn.textContent = "Try Again";
+                                    retryBtn.addEventListener("click", (e) => {
+                                        e.stopPropagation();
+                                        resetQuiz();
+                                    });
+                                    feedback.appendChild(retryBtn);
+                                }
+                            }
+
+                            feedback.classList.add("is-visible");
+                            feedback.classList.add(isCorrect ? "is-correct" : "is-incorrect");
+                        }
+                    });
+                });
+            });
+        }
+
+    </script>
+    <script>
+        /* Inlined from ./components/stepper.js */
+        // stepper.js — multi-step walkthrough interaction for .stepper elements.
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initSteppers);
+        } else {
+            initSteppers();
+        }
+
+        function initSteppers() {
+            document.querySelectorAll(".stepper").forEach((stepper) => {
+                if (stepper.dataset.initialized) return;
+                stepper.dataset.initialized = "true";
+
+                const steps = stepper.querySelectorAll(".stepper-step");
+                const dots = stepper.querySelectorAll(".stepper-dot");
+                const prevBtn = stepper.querySelector(".stepper-btn.is-prev");
+                const nextBtn = stepper.querySelector(".stepper-btn.is-next");
+
+                // Auto-inject step counter into the header
+                const header = stepper.querySelector(".stepper-header");
+                let counter = null;
+                if (header && steps.length > 0) {
+                    counter = document.createElement("span");
+                    counter.className = "stepper-counter";
+                    header.appendChild(counter);
+                }
+
+                let currentStep = 0;
+
+                const updateStepper = () => {
+                    steps.forEach((step, i) =>
+                        step.classList.toggle("is-active", i === currentStep),
+                    );
+                    dots.forEach((dot, i) =>
+                        dot.classList.toggle("is-active", i === currentStep),
+                    );
+                    if (prevBtn) prevBtn.disabled = currentStep === 0;
+                    if (nextBtn) nextBtn.disabled = currentStep === steps.length - 1;
+                    if (counter)
+                        counter.textContent = `Step ${currentStep + 1} of ${steps.length}`;
+                };
+
+                if (prevBtn)
+                    prevBtn.addEventListener("click", () => {
+                        if (currentStep > 0) {
+                            currentStep--;
+                            updateStepper();
+                        }
+                    });
+
+                if (nextBtn)
+                    nextBtn.addEventListener("click", () => {
+                        if (currentStep < steps.length - 1) {
+                            currentStep++;
+                            updateStepper();
+                        }
+                    });
+
+                updateStepper();
+            });
+        }
+
+    </script>
+    <script>
+        /* Inlined from ./components/comparison-tabs.js */
+        // comparison-tabs.js — tab switcher for .comparison-tabs elements.
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initComparisonTabs);
+        } else {
+            initComparisonTabs();
+        }
+
+        function initComparisonTabs() {
+            document.querySelectorAll(".comparison-tabs").forEach((container) => {
+                if (container.dataset.initialized) return;
+                container.dataset.initialized = "true";
+
+                const btns = container.querySelectorAll(".comparison-tab-btn");
+                const panels = container.querySelectorAll(".comparison-tab-panel");
+
+                btns.forEach((btn) => {
+                    btn.addEventListener("click", () => {
+                        const target = btn.dataset.tab;
+                        btns.forEach((b) => b.classList.remove("is-active"));
+                        panels.forEach((p) => p.classList.remove("is-active"));
+                        btn.classList.add("is-active");
+                        const targetPanel = container.querySelector(`[data-panel="${target}"]`);
+                        if (targetPanel) targetPanel.classList.add("is-active");
+                    });
+                });
+            });
+        }
+
+    </script>
+    <script>
+        /* Inlined from ./components/primitives.js */
+        // primitives.js — range-input value display wiring for .primitive-control elements.
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initPrimitives);
+        } else {
+            initPrimitives();
+        }
+
+        function initPrimitives() {
+            document.querySelectorAll('input[type="range"]').forEach((range) => {
+                if (range.dataset.initialized) return;
+                range.dataset.initialized = "true";
+
+                const valueDisplay = range
+                    .closest(".primitive-control")
+                    ?.querySelector(".primitive-value");
+                if (valueDisplay) {
+                    range.addEventListener("input", () => {
+                        valueDisplay.textContent = range.value;
+                    });
+                } else {
+                    console.warn(
+                        "[interactive-article] Range input missing a .primitive-value display. " +
+                        'Wrap it in .primitive-control containing a <span class="primitive-value">.',
+                        range,
+                    );
+                }
+            });
+        }
+
+    </script>
+
+    <!-- Native JavaScript handlers for the interactive simulations -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // ==========================================
+            // 1. Layer Selection Simulator Logic
+            // ==========================================
+            const inputM = document.getElementById('input-m');
+            const valM = document.getElementById('val-m');
+            const inputU = document.getElementById('input-u');
+            const valU = document.getElementById('val-u');
+            const btnRoll = document.getElementById('btn-roll');
+            const resMl = document.getElementById('res-ml');
+            const mathStep = document.getElementById('math-step');
+            const resLmax = document.getElementById('res-lmax');
+
+            function updateLayerSelection() {
+                const m = parseInt(inputM.value);
+                const u = parseFloat(inputU.value);
+                valM.textContent = m;
+                valU.textContent = u.toFixed(2);
+
+                const mL = 1.0 / Math.log(m);
+                resMl.textContent = mL.toFixed(3);
+
+                const lnU = -Math.log(u);
+                const stepVal = lnU * mL;
+                mathStep.textContent = `floor(-ln(${u.toFixed(2)}) * ${mL.toFixed(3)}) = floor(${lnU.toFixed(3)} * ${mL.toFixed(3)}) = floor(${stepVal.toFixed(3)})`;
+
+                const lMax = Math.floor(stepVal);
+                resLmax.textContent = lMax;
+
+                // Update visualizer bars
+                const barPcts = [
+                    (1 - 1 / m) * 100, // Layer 0
+                    (1 / m * (1 - 1 / m)) * 100, // Layer 1
+                    (1 / (m * m) * (1 - 1 / m)) * 100, // Layer 2
+                    (1 / (m * m * m)) * 100 // Layer 3
+                ];
+
+                const layers = ['bar-l0', 'bar-l1', 'bar-l2', 'bar-l3'];
+                const pcts = ['pct-l0', 'pct-l1', 'pct-l2', 'pct-l3'];
+
+                layers.forEach((id, idx) => {
+                    const bar = document.getElementById(id);
+                    const pctText = document.getElementById(pcts[idx]);
+
+                    // Clamp visual sizes so they remain human visible even if very small
+                    const rawPct = barPcts[idx];
+                    bar.style.width = `${Math.max(rawPct, 2)}%`;
+                    pctText.textContent = `~${rawPct.toFixed(1)}%`;
+
+                    // Highlight active calculated layer
+                    if (lMax === idx) {
+                        bar.classList.add('active-layer');
+                    } else {
+                        bar.classList.remove('active-layer');
+                    }
+                });
+            }
+
+            inputM.addEventListener('input', updateLayerSelection);
+            inputU.addEventListener('input', updateLayerSelection);
+
+            btnRoll.addEventListener('click', () => {
+                const randVal = Math.random() * 0.98 + 0.01;
+                inputU.value = randVal.toFixed(2);
+                updateLayerSelection();
+            });
+
+            // Initialize simulation
+            updateLayerSelection();
+
+
+            // ==========================================
+            // 2. Diversity Heuristic Dynamic SVG Handler
+            // ==========================================
+            const tabs = document.querySelectorAll('#tab-heuristic .comparison-tab-btn');
+            const panels = document.querySelectorAll('#tab-heuristic .comparison-tab-panel');
+            const hStatus = document.getElementById('status-h-text');
+
+            const edgeP = document.getElementById('edge-p');
+            const edgeE = document.getElementById('edge-e');
+            const edgeQ = document.getElementById('edge-q');
+            const edgePE = document.getElementById('edge-pe');
+            const edgePQ = document.getElementById('edge-pq');
+
+            function resetHeuristicSVG() {
+                // Return SVG links to initial state
+                edgeP.setAttribute('stroke', '#475569');
+                edgeP.setAttribute('stroke-dasharray', 'none');
+                edgeP.setAttribute('opacity', '0.2');
+
+                edgeE.setAttribute('stroke', '#475569');
+                edgeE.setAttribute('stroke-dasharray', '2,2');
+                edgeE.setAttribute('opacity', '0.2');
+
+                edgeQ.setAttribute('stroke', '#475569');
+                edgeQ.setAttribute('stroke-dasharray', 'none');
+                edgeQ.setAttribute('opacity', '0.2');
+
+                edgePE.setAttribute('opacity', '0');
+                edgePQ.setAttribute('opacity', '0');
+            }
+
+            function selectStep(stepId) {
+                resetHeuristicSVG();
+
+                if (stepId === 'step1') {
+                    edgeP.setAttribute('stroke', '#10b981');
+                    edgeP.setAttribute('opacity', '1');
+                    edgeP.setAttribute('stroke-width', '2.5');
+                    hStatus.innerHTML = `<strong>Status: Step 1 Accepted.</strong> Node P has no competing edge constraints, so its connection is instantly approved.`;
+                } else if (stepId === 'step2') {
+                    edgeP.setAttribute('stroke', '#10b981');
+                    edgeP.setAttribute('opacity', '0.8');
+
+                    edgeE.setAttribute('stroke', '#ef4444');
+                    edgeE.setAttribute('opacity', '1');
+                    edgeE.setAttribute('stroke-width', '2.5');
+
+                    edgePE.setAttribute('opacity', '1');
+                    hStatus.innerHTML = `<strong>Status: Step 2 Rejected.</strong> Candidate E is closer to already-connected Node P (\\(d_{EP} \\approx 0.61\\)) than to Node N (\\(d_{EN} \\approx 1.12\\)), creating a redundant coordinate shortcut.`;
+                } else if (stepId === 'step3') {
+                    edgeP.setAttribute('stroke', '#10b981');
+                    edgeP.setAttribute('opacity', '0.8');
+
+                    edgeE.setAttribute('stroke', '#ef4444');
+                    edgeE.setAttribute('opacity', '0.1');
+
+                    edgeQ.setAttribute('stroke', '#10b981');
+                    edgeQ.setAttribute('opacity', '1');
+                    edgeQ.setAttribute('stroke-width', '2.5');
+
+                    edgePQ.setAttribute('opacity', '1');
+                    hStatus.innerHTML = `<strong>Status: Step 3 Accepted.</strong> Node Q is farther from Node P (\\(d_{QP} \\approx 1.94\\)) than to Node N (\\(d_{QN} \\approx 1.12\\)), adding diverse, multidirectional highway routes.`;
+                }
+
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    window.MathJax.typesetPromise();
+                }
+            }
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('is-active'));
+                    panels.forEach(p => p.classList.remove('is-active'));
+
+                    tab.classList.add('is-active');
+                    const targetPanel = document.querySelector(`[data-panel="${tab.dataset.tab}"]`);
+                    targetPanel.classList.add('is-active');
+
+                    selectStep(tab.dataset.tab);
+                });
+            });
+
+            // Initialize first step visually
+            selectStep('step1');
+
+
+            // ==========================================
+            // 3. Hyperparameter Tuner Logic
+            // ==========================================
+            const tunerM = document.getElementById('input-tuner-m');
+            const tunerEfc = document.getElementById('input-tuner-efc');
+            const tunerEfs = document.getElementById('input-tuner-efs');
+
+            const valTunerM = document.getElementById('val-tuner-m');
+            const valTunerEfc = document.getElementById('val-tuner-efc');
+            const valTunerEfs = document.getElementById('val-tuner-efs');
+
+            const metricRecall = document.getElementById('metric-recall');
+            const metricLatency = document.getElementById('metric-latency');
+            const metricRam = document.getElementById('metric-ram');
+            const metricBuild = document.getElementById('metric-build');
+
+            const fillRecall = document.getElementById('fill-recall');
+            const fillLatency = document.getElementById('fill-latency');
+            const fillRam = document.getElementById('fill-ram');
+            const fillBuild = document.getElementById('fill-build');
+
+            function updateTunerMetrics() {
+                const m = parseInt(tunerM.value);
+                const efc = parseInt(tunerEfc.value);
+                const efs = parseInt(tunerEfs.value);
+
+                valTunerM.textContent = m;
+                valTunerEfc.textContent = efc;
+                valTunerEfs.textContent = efs;
+
+                // 1. Calculate Estimated Recall (%)
+                // Modeled empirically: recall saturates with larger efs/m
+                const rawRecall = Math.min((1 - Math.exp(-0.28 * efs * (16 / m))) * 100, 99.9);
+                metricRecall.textContent = `${rawRecall.toFixed(1)}%`;
+                fillRecall.style.width = `${rawRecall}%`;
+                if (rawRecall > 95) {
+                    fillRecall.style.backgroundColor = '#10b981';
+                } else if (rawRecall > 80) {
+                    fillRecall.style.backgroundColor = '#3b82f6';
+                } else {
+                    fillRecall.style.backgroundColor = '#ef4444';
+                }
+
+                // 2. Calculate Query Latency (ms)
+                // Linear with efs, log logarithmic indexing structures
+                const rawLatency = Math.max(0.12, (efs * 0.045) + (m * 0.005));
+                metricLatency.textContent = `${rawLatency.toFixed(2)} ms`;
+                // Latency visual fills inversely (closer to 100% means lower latency)
+                const latencyFillVal = Math.max(5, 100 - (rawLatency * 8));
+                fillLatency.style.width = `${latencyFillVal}%`;
+                if (rawLatency < 1.0) {
+                    fillLatency.style.backgroundColor = '#10b981';
+                } else if (rawLatency < 3.0) {
+                    fillLatency.style.backgroundColor = '#3b82f6';
+                } else {
+                    fillLatency.style.backgroundColor = '#ef4444';
+                }
+
+                // 3. Calculate RAM Usage (MB) for 1M vectors
+                // Roughly 4 bytes per float, d=128 dimensions, plus connection arrays
+                const baseVectorMemory = 1000000 * 128 * 4 / (1024 * 1024); // ~488MB
+                const indexGraphMemory = 1000000 * m * 8 / (1024 * 1024); // ~15-60MB
+                const totalRam = baseVectorMemory + indexGraphMemory;
+                metricRam.textContent = `${Math.round(totalRam)} MB`;
+                // Normalize memory footprint out of max 1GB (1000MB)
+                const ramPercent = Math.min((totalRam / 1000) * 100, 100);
+                fillRam.style.width = `${ramPercent}%`;
+                if (ramPercent < 55) {
+                    fillRam.style.backgroundColor = '#10b981';
+                } else if (ramPercent < 75) {
+                    fillRam.style.backgroundColor = '#3b82f6';
+                } else {
+                    fillRam.style.backgroundColor = '#f59e0b';
+                }
+
+                // 4. Calculate Build Indexing Speed (vectors / sec)
+                // Speed decreases as build search queue (efc) scales
+                const rawBuildSpeed = Math.round(50000 / (efc * 0.6 + m * 0.8));
+                metricBuild.textContent = `${rawBuildSpeed.toLocaleString()} v/s`;
+                // Normalize speed out of 5000 v/s
+                const buildPercent = Math.min((rawBuildSpeed / 3000) * 100, 100);
+                fillBuild.style.width = `${buildPercent}%`;
+                if (rawBuildSpeed > 1000) {
+                    fillBuild.style.backgroundColor = '#10b981';
+                } else if (rawBuildSpeed > 400) {
+                    fillBuild.style.backgroundColor = '#3b82f6';
+                } else {
+                    fillBuild.style.backgroundColor = '#f59e0b';
+                }
+            }
+
+            tunerM.addEventListener('input', updateTunerMetrics);
+            tunerEfc.addEventListener('input', updateTunerMetrics);
+            tunerEfs.addEventListener('input', updateTunerMetrics);
+
+            // Initialize Tuner
+            updateTunerMetrics();
+        });
+    </script>
+</body>
+
+</html>

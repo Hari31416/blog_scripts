@@ -12,3 +12,5 @@ media
 copy_media.ipynb
 .DS_Store
 .env
+.agents
+skills-lock.json
