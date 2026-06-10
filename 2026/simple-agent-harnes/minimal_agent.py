@@ -10,12 +10,18 @@ client = OpenAI(
 )
 model = os.environ.get("LITELLM_MODEL", "gpt-oss-120b")
 
-SYSTEM_PROMPT = """You are a helpful, agentic coding and system assistant.
-You have access to a bash shell on the user's machine.
+SYSTEM_PROMPT = """You are a helpful, agentic coding and system assistant. You have access to a bash shell on the user's machine. You can use it to write bash command or run python code to help you solve the user's request.
+
 To run a bash command, output it inside a `<bash>` and `</bash>` tag, for example:
 <bash>ls -la</bash>
 
-Only execute one command at a time. Explain your reasoning before calling any command. If you have completed the request, explain your findings/solution clearly and wait for further instructions.
+To write and run a Python script dynamically, you can bash commands to create a script file and then run it, for example:
+<bash>cat << 'EOF' > script.py
+print("hello")
+EOF
+python3 script.py</bash>
+
+Only write one command at a time. Explain your reasoning before calling any command. If you have completed the request, explain your findings/solution clearly.
 """
 messages = [
     {
@@ -28,7 +34,7 @@ prompt = input("Enter prompt: ")
 messages.append({"role": "user", "content": prompt})
 
 while True:
-    response = client.chat.completions.create(model=model, messages=messages)  # type: ignore
+    response = client.chat.completions.create(model=model, messages=messages)
     content = response.choices[0].message.content or ""
     print(f"\nAgent:\n{content}")
     messages.append({"role": "assistant", "content": content})
